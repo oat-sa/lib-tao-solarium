@@ -23,6 +23,7 @@ namespace oat\tao\solarium;
 use oat\tao\model\search\Search;
 use common_Logger;
 use Solarium\Client;
+use oat\oatbox\Configurable;
 
 /**
  * Solarium Search implementation
@@ -41,17 +42,25 @@ use Solarium\Client;
  * 
  * @author Joel Bout <joel@taotesting.com>
  */
-class SolariumSearch implements Search
+class SolariumSearch extends Configurable implements Search
 {
+    const INDEXING_BLOCK_SIZE = 100;
+    
     /**
      * 
      * @var \Solarium\Client
      */
     private $client;
     
-    public function __construct($config) {
-        $this->client = new \Solarium\Client($config);
-        
+    /**
+     * 
+     * @return \Solarium\Client
+     */
+    protected function getClient() {
+        if (is_null($this->client)) {
+            $this->client = new \Solarium\Client($this->getOptions());
+        }
+        return $this->client;
     }
     
     /**
@@ -60,14 +69,14 @@ class SolariumSearch implements Search
      */
     public function query($queryString) {
         
-        $query = $this->client->createQuery(\Solarium\Client::QUERY_SELECT);
+        $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
         
         // set a query (all prices starting from 12)
         $query->setQuery($queryString);
         
         
         // this executes the query and returns the result
-        $resultset = $this->client->execute($query);
+        $resultset = $this->getClient()->execute($query);
         
         $uris = array();
         foreach ($resultset as $document) {
@@ -78,21 +87,35 @@ class SolariumSearch implements Search
         return $uris;
     }
     
-    /**
-     * (non-PHPdoc)
-     * @see \oat\tao\model\search\Search::index()
-     */
-    public function index($resourceUris) {
-        
-    }
+    public function index(\Traversable $resourceTraversable) {
     
-    /**
-     * (non-PHPdoc)
-     * @see \oat\oatbox\PhpSerializable::__toPhpCode()
-     */
-    public function __toPhpCode() {
-        $phpOptions = \common_Utils::toPHPVariableString($this->client->getOptions(), true);
-        return 'new oat\\tao\\solarium\\SolariumSearch('.PHP_EOL.$phpOptions.PHP_EOL.')';
+        $count = 0;
+    
+        // flush existing index
+        $update = $this->getClient()->createUpdate();
+        $update->addDeleteQuery('*:*');
+        $result = $this->getClient()->update($update);
+        
+        while ($resourceTraversable->valid()) {
+            $update = $this->getClient()->createUpdate();
+            $blockSize = 0;
+            while ($resourceTraversable->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
+                $indexer = new SolariumIndexer($resourceTraversable->current());
+                $update->addDocuments(array($indexer->toDocument($update)));
+                $blockSize++;
+                $resourceTraversable->next();
+            }
+            $result = $this->getClient()->update($update);
+            $count += $blockSize;
+        }
+        
+        $update = $this->getClient()->createUpdate();
+        $update->addCommit();
+        $update->addOptimize();
+        $result = $this->getClient()->update($update);
+        
+        
+        return $count;
     }
 
 }
