@@ -20,10 +20,10 @@
  */
 namespace oat\tao\solarium;
 
-use oat\tao\model\search\Search;
 use common_Logger;
+use oat\tao\model\search\Search;
+use oat\tao\model\search\Index;
 use Solarium\Client;
-use oat\oatbox\Configurable;
 use Solarium\QueryType\Update\Query\Document\DocumentInterface;
 
 /**
@@ -55,7 +55,7 @@ class SolariumIndexer
     public function toDocument(\Solarium\QueryType\Update\Query\Query $update)
     {
         $document = $update->createDocument();
-        //common_Logger::i('indexing '.$this->resource->getLabel());
+//        common_Logger::i('indexing '.$this->resource->getLabel());
         
         $document->uri = $this->resource->getUri();
         
@@ -69,70 +69,36 @@ class SolariumIndexer
     
     protected function indexProperty(DocumentInterface $document, \core_kernel_classes_Property $property)
     {
-        //\common_Logger::d('property '.$property->getLabel());
+        $indexes = $property->getPropertyValues(new \core_kernel_classes_Property('http://www.tao.lu/Ontologies/TAO.rdf#PropertyIndex'));
+        foreach ($indexes as $indexUri) {
+            $index = new Index($indexUri);
+            $id = $index->getIdentifier();
+            $strings = $index->tokenize($this->resource->getPropertyValues($property));
     
-        switch ($property->getUri()) {
-        	case RDFS_LABEL:
-        	    // if label: tokenize, store
-        	    $document->label = $this->resource->getLabel();
-        	    break;
-    
-        	case 'http://www.tao.lu/Ontologies/TAOItem.rdf#ItemModel':
-        	case 'http://myfantasy.domain/my_tao30.rdf#i1415962196740059':
-        	    $this->indexKeyword($document, $property);
-        	    break;
-        	case 'http://www.tao.lu/Ontologies/TAOItem.rdf#ItemContent' :
-        	    /*
-        	    $content = \taoItems_models_classes_ItemsService::singleton()->getItemContent($this->resource);
-        	    if (!empty($content)) {
-    
-        	        //if itemcontent: tokenize, nostore, complex data retrieval
-        	        // @todo
-        	    }
-        	    */
-        	    break;
-        	
-        	// blacklist
-        	case 'http://www.tao.lu/Ontologies/TAO.rdf#Lock' :
-        	case 'http://www.tao.lu/Ontologies/TAOTest.rdf#TestContent' :
-        	    break;
-        	default :
-    	       $this->indexUnknown($document, $property);
-        }
-    }
-    
-    protected function indexUnknown(DocumentInterface $document, \core_kernel_classes_Property $property)
-    {
-        $range = $property->getRange();
-        if ($range->getUri() == RDFS_LITERAL) {
-            \common_Logger::d('index '.$property->getLabel().' as literal');
-        } else {
-            \common_Logger::d('index '.$property->getUri().' as keyword');
-        }
-    }
-    
-    protected function indexText(DocumentInterface $document, \core_kernel_classes_Property $property)
-    {
-        $val = array();
-        foreach ($this->resource->getPropertyValues($property) as $value) {
-            if (!empty($value)) {
-                $valres = new \core_kernel_classes_Resource($value);
-                $val[] = $valres->getLabel();
+            if (!empty($strings)) {
+                if ($index->isFuzzyMatching()) {
+                    $this->indexText($document, $index, $strings);
+                } else {
+                    $this->indexKeyword($document, $index, $strings);
+                }
+            } else {
+//                common_Logger::d('no tokens for '.$index->getLabel());
             }
         }
-        $document->type_txt = $val;
     }
     
-    protected function indexKeyword(DocumentInterface $document, \core_kernel_classes_Property $property)
+    protected function indexText(DocumentInterface $document, Index $index, $values)
     {
-        $val = array();
-        foreach ($this->resource->getPropertyValues($property) as $value) {
-            if (!empty($value)) {
-                $valres = new \core_kernel_classes_Resource($value);
-                $val[] = $valres->getLabel();
-            }
-        }
-        $document->type_ss = $val;
+//        common_Logger::d('indexed '.$index->getLabel().' as text ('.count($values).')');
+        $indexName = $index->getIdentifier().'_txt';
+        $document->$indexName = implode(' ', $values);
+    }
+    
+    protected function indexKeyword(DocumentInterface $document, Index $index, $values)
+    {
+//        common_Logger::d('indexed '.$index->getLabel().' as keyword ('.count($values).')');
+        $indexName = $index->getIdentifier().'_ss';
+        $document->$indexName = $values;
     }
     
     protected function getIndexedProperties()
