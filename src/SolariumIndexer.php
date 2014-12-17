@@ -45,69 +45,102 @@ use Solarium\QueryType\Update\Query\Document\DocumentInterface;
  */
 class SolariumIndexer
 {
-    private $resource;
+    const INDEXING_BLOCK_SIZE = 100;
     
-    public function __construct(\core_kernel_classes_Resource $resource)
+    private $client = null;
+    
+    private $resources = null;
+    
+    private $indexMap = array();
+    
+    private $propertyCache = array();
+    
+    
+    public function __construct(Client $client, \Traversable $resourceTraversable)
     {
-        $this->resource = $resource;
+        $this->client = $client;
+        $this->resources = $resourceTraversable;
     }
+
+    public function run() {
     
-    public function toDocument(\Solarium\QueryType\Update\Query\Query $update)
-    {
-        $document = $update->createDocument();
-//        common_Logger::i('indexing '.$this->resource->getLabel());
-        
-        $document->uri = $this->resource->getUri();
-        
-//        $this->indexTypes($document);
-        foreach ($this->getIndexedProperties() as $property) {
-            $this->indexProperty($document, $property);
+        $count = 0;
+    
+        // flush existing index
+        $update = $this->client->createUpdate();
+        $update->addDeleteQuery('*:*');
+        $result = $this->client->update($update);
+    
+        while ($this->resources->valid()) {
+            $update = $this->client->createUpdate();
+            $blockSize = 0;
+            while ($this->resources->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
+                $document = $this->createDocument($update, $this->resources->current());
+                $update->addDocuments(array($document));
+                $blockSize++;
+                $this->resources->next();
+            }
+            $result = $this->client->update($update);
+            $count += $blockSize;
         }
-        
-        return $document;
+    
+        $update = $this->client->createUpdate();
+        $update->addCommit();
+        $update->addOptimize();
+        $result = $this->client->update($update);
+    
+        return $count;
     }
     
-    protected function indexProperty(DocumentInterface $document, \core_kernel_classes_Property $property)
-    {
-        $indexes = $property->getPropertyValues(new \core_kernel_classes_Property('http://www.tao.lu/Ontologies/TAO.rdf#PropertyIndex'));
-        foreach ($indexes as $indexUri) {
-            $index = new Index($indexUri);
-            $id = $index->getIdentifier();
-            $strings = $index->tokenize($this->resource->getPropertyValues($property));
-    
-            if (!empty($strings)) {
-                if ($index->isFuzzyMatching()) {
-                    $this->indexText($document, $index, $strings);
-                } else {
-                    $this->indexKeyword($document, $index, $strings);
+    protected function createDocument($update, \core_kernel_classes_Resource $resource) {
+        $document = new SolariumDocument($update, $resource);
+        foreach ($this->getProperties($resource) as $property) {
+            $indexes = $this->getIndexes($property);
+            if (!empty($indexes)) {
+                $values = $resource->getPropertyValues($property);
+                foreach ($indexes as $index) {
+                    $strings = $index->tokenize($values);
+                    $document->add($index, $strings);
                 }
-            } else {
-//                common_Logger::d('no tokens for '.$index->getLabel());
             }
         }
+        return $document->getDocument();
     }
     
-    protected function indexText(DocumentInterface $document, Index $index, $values)
-    {
-//        common_Logger::d('indexed '.$index->getLabel().' as text ('.count($values).')');
-        $indexName = $index->getIdentifier().'_txt';
-        $document->$indexName = implode(' ', $values);
-    }
-    
-    protected function indexKeyword(DocumentInterface $document, Index $index, $values)
-    {
-//        common_Logger::d('indexed '.$index->getLabel().' as keyword ('.count($values).')');
-        $indexName = $index->getIdentifier().'_ss';
-        $document->$indexName = $values;
-    }
-    
-    protected function getIndexedProperties()
-    {
+    protected function getProperties(\core_kernel_classes_Resource $resource) {
         $classProperties = array(new \core_kernel_classes_Property(RDFS_LABEL));
-        foreach ($this->resource->getTypes() as $type) {
-            $classProperties = array_merge($classProperties, \tao_helpers_form_GenerisFormFactory::getClassProperties($type));
+        foreach ($resource->getTypes() as $type) {
+            $classProperties = array_merge($classProperties, $this->getPropertiesByClass($type));
         }
-    
+        
         return $classProperties;
+    }
+    
+    protected function getPropertiesByClass(\core_kernel_classes_Class $type) {
+        if (!isset($this->propertyCache[$type->getUri()])) {
+            $this->propertyCache[$type->getUri()] = \tao_helpers_form_GenerisFormFactory::getClassProperties($type);
+        }
+        return $this->propertyCache[$type->getUri()];
+    }
+    
+    protected function getIndexes(\core_kernel_classes_Property $property) {
+        if (!isset($this->indexMap[$property->getUri()])) {
+            $this->indexMap[$property->getUri()] = array();
+            $indexes = $property->getPropertyValues(new \core_kernel_classes_Property('http://www.tao.lu/Ontologies/TAO.rdf#PropertyIndex'));
+            foreach ($indexes as $indexUri) {
+                $this->indexMap[$property->getUri()][] = new SolrIndex($indexUri);
+            }
+        }
+        return $this->indexMap[$property->getUri()];
+    }
+    
+    public function getUsedIndexes() {
+        $usedIndexes = array();
+        foreach ($this->indexMap as $indexes) {
+            foreach ($indexes as $index) {
+                $usedIndexes[] = $index;
+            }
+        }
+        return $usedIndexes;
     }
 }

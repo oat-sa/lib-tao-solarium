@@ -24,6 +24,8 @@ use oat\tao\model\search\Search;
 use common_Logger;
 use Solarium\Client;
 use oat\oatbox\Configurable;
+use oat\tao\model\search\SyntaxException;
+use Solarium\Exception\HttpException;
 
 /**
  * Solarium Search implementation
@@ -44,13 +46,15 @@ use oat\oatbox\Configurable;
  */
 class SolariumSearch extends Configurable implements Search
 {
-    const INDEXING_BLOCK_SIZE = 100;
+    const SUBSTITUTION_CONFIG_KEY = 'solr_search_map';
     
     /**
      * 
      * @var \Solarium\Client
      */
     private $client;
+    
+    private $substitutes = null;
     
     /**
      * 
@@ -68,15 +72,34 @@ class SolariumSearch extends Configurable implements Search
      * @see \oat\tao\model\search\Search::query()
      */
     public function query($queryString) {
+        $parts = explode(' ', $queryString);
+        foreach ($parts as $key => $part) {
+            if (strpos($part, ':') !== false) {
+                $sub = $this->getIndexSubstitutions();
+                list($field, $value) = explode(':', $part, 2);
+                if (isset($sub[$field])) {
+                    $parts[$key] = $sub[$field].':'.$value;
+                }
+            }
+        }
+        $queryString = implode(' ', $parts);
         
-        $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
-        
-        // set a query (all prices starting from 12)
-        $query->setQuery($queryString);
-        
-        
-        // this executes the query and returns the result
-        $resultset = $this->getClient()->execute($query);
+        try {
+            $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
+            $query->setQuery($queryString);
+            
+            // this executes the query and returns the result
+            $resultset = $this->getClient()->execute($query);
+        } catch (HttpException $e) {
+            switch ($e->getCode()) {
+            	case 400 :
+            	    $json = json_decode($e->getBody(), true);
+            	    throw new SyntaxException($queryString, __('There is an error in your search query, system returned: %s', $json['error']['msg']));
+            	default :
+            	    throw new SyntaxException($queryString, __('An unknown error occured during search'));
+            }
+            
+        }
         
         $uris = array();
         foreach ($resultset as $document) {
@@ -89,33 +112,31 @@ class SolariumSearch extends Configurable implements Search
     
     public function index(\Traversable $resourceTraversable) {
     
-        $count = 0;
-    
-        // flush existing index
-        $update = $this->getClient()->createUpdate();
-        $update->addDeleteQuery('*:*');
-        $result = $this->getClient()->update($update);
+        $indexer = new SolariumIndexer($this->getClient(), $resourceTraversable);
+        $count = $indexer->run();
         
-        while ($resourceTraversable->valid()) {
-            $update = $this->getClient()->createUpdate();
-            $blockSize = 0;
-            while ($resourceTraversable->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
-                $indexer = new SolariumIndexer($resourceTraversable->current());
-                $update->addDocuments(array($indexer->toDocument($update)));
-                $blockSize++;
-                $resourceTraversable->next();
-            }
-            $result = $this->getClient()->update($update);
-            $count += $blockSize;
+        // generate index substitution map
+        
+        $map = array();
+        foreach ($indexer->getUsedIndexes() as $index) {
+            $map[$index->getIdentifier()] = $index->getSolrId();
         }
-        
-        $update = $this->getClient()->createUpdate();
-        $update->addCommit();
-        $update->addOptimize();
-        $result = $this->getClient()->update($update);
-        
-        
+        $this->setIndexSubstitutions($map);
+            
         return $count;
     }
 
+    public function setIndexSubstitutions($map) {
+        $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
+        $ext->setConfig(self::SUBSTITUTION_CONFIG_KEY, $map);
+        $this->substitutes = $map;
+    }
+
+    public function getIndexSubstitutions() {
+        if (is_null($this->substitutes)) {
+            $this->substitutes = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao')->getConfig(self::SUBSTITUTION_CONFIG_KEY);
+        }
+        return $this->substitutes;
+    }
+    
 }
