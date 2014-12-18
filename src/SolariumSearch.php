@@ -71,7 +71,7 @@ class SolariumSearch extends Configurable implements Search
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::query()
      */
-    public function query($queryString) {
+    public function query($queryString, $rootClass = null) {
         $parts = explode(' ', $queryString);
         foreach ($parts as $key => $part) {
             if (strpos($part, ':') !== false) {
@@ -83,6 +83,9 @@ class SolariumSearch extends Configurable implements Search
             }
         }
         $queryString = implode(' ', $parts);
+        if (!is_null($rootClass)) {
+            $queryString = $queryString.' AND type_r:'.str_replace(':', '\\:', $rootClass->getUri());
+        }
         
         try {
             $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
