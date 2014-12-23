@@ -43,7 +43,10 @@ use oat\tao\model\search\Index;
 class SolrIndex extends Index
 {
     public function getSolrId() {
-        $suffix = $this->isFuzzyMatching() ? '_txt' : '_ss';
+        $suffix = $this->isFuzzyMatching() ? '_t' : '_s';
+        if ($this->isDefaultSearchable()) {
+            $suffix .= '_d';
+        }
         return $this->getIdentifier().$suffix;
     }
 }
