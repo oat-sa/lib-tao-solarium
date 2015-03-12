@@ -118,7 +118,8 @@ class SolariumIndexer
     
     protected function getPropertiesByClass(\core_kernel_classes_Class $type) {
         if (!isset($this->propertyCache[$type->getUri()])) {
-            $this->propertyCache[$type->getUri()] = \tao_helpers_form_GenerisFormFactory::getClassProperties($type);
+            $this->propertyCache[$type->getUri()] = $type->getProperties(true);
+            // alternativly use non recursiv and union with getPropertiesByClass of parentclasses
         }
         return $this->propertyCache[$type->getUri()];
     }
