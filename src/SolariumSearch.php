@@ -76,7 +76,7 @@ class SolariumSearch extends Configurable implements Search
         foreach ($parts as $key => $part) {
             
             $matches = array();
-            if (preg_match('/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches) === 1) {
+            if (preg_match('/^([^a-z_]*)([a-z_]+):(.*)/', $part, $matches) === 1) {
                 list($fullstring, $prefix, $fieldname, $value) = $matches;
                 $sub = $this->getIndexSubstitutions();
                 if (isset($sub[$fieldname])) {
