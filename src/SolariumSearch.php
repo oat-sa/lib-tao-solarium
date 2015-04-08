@@ -74,11 +74,13 @@ class SolariumSearch extends Configurable implements Search
     public function query($queryString, $rootClass = null) {
         $parts = explode(' ', $queryString);
         foreach ($parts as $key => $part) {
-            if (strpos($part, ':') !== false) {
+            
+            $matches = array();
+            if (preg_match('/^([^a-z_]*)([a-z_]+):(.*)/', $part, $matches) === 1) {
+                list($fullstring, $prefix, $fieldname, $value) = $matches;
                 $sub = $this->getIndexSubstitutions();
-                list($field, $value) = explode(':', $part, 2);
-                if (isset($sub[$field])) {
-                    $parts[$key] = $sub[$field].':'.$value;
+                if (isset($sub[$fieldname])) {
+                    $parts[$key] = $prefix.$sub[$fieldname].':'.$value;
                 }
             }
         }
