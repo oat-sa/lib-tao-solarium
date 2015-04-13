@@ -91,7 +91,7 @@ class SolariumSearch extends Configurable implements Search
         
         try {
             $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
-            $query->setQuery($queryString);
+            $query->setQuery($queryString)->setRows(100);
             
             // this executes the query and returns the result
             $resultset = $this->getClient()->execute($query);
