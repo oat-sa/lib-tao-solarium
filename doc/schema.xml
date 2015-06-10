@@ -93,6 +93,7 @@
 
     <!-- boolean type: "true" or "false" -->
     <fieldType name="boolean" class="solr.BoolField" sortMissingLast="true"/>
+    <fieldType name="booleans" class="solr.BoolField" sortMissingLast="true" multiValued="true"/>
 
     <!-- sortMissingLast and sortMissingFirst attributes are optional attributes are
          currently supported on types that are sorted internally as strings
@@ -161,7 +162,7 @@
     <fieldType name="date" class="solr.TrieDateField" precisionStep="0" positionIncrementGap="0"/>
 
     <!-- A Trie based date field for faster date range queries and date faceting. -->
-    <fieldType name="tdate" class="solr.TrieDateField" precisionStep="6" positionIncrementGap="0"/>
+    <!--<fieldType name="tdate" class="solr.TrieDateField" precisionStep="6" positionIncrementGap="0"/>-->
 
 
     <!--Binary data type. The data should be sent/retrieved in as Base64 encoded Strings -->
@@ -580,7 +581,7 @@
         <filter class="solr.SoraniNormalizationFilterFactory"/>
         <!-- for any latin text -->
         <filter class="solr.LowerCaseFilterFactory"/>
-        <filter class="solr.StopFilterFactory" ignoreCase="true" words="lang/stopwords_ckb.txt"/>
+        <!--<filter class="solr.StopFilterFactory" ignoreCase="true" words="lang/stopwords_ckb.txt"/>-->
         <filter class="solr.SoraniStemFilterFactory"/>
       </analyzer>
     </fieldType>
