@@ -26,6 +26,7 @@ use Solarium\Client;
 use oat\oatbox\Configurable;
 use oat\tao\model\search\SyntaxException;
 use Solarium\Exception\HttpException;
+use Solarium\QueryType\Select\Query\Query;
 
 /**
  * Solarium Search implementation
@@ -74,7 +75,7 @@ class SolariumSearch extends Configurable implements Search
     public function query($queryString, $rootClass = null) {
         $parts = explode(' ', $queryString);
         foreach ($parts as $key => $part) {
-            
+
             $matches = array();
             if (preg_match('/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches) === 1) {
                 list($fullstring, $prefix, $fieldname, $value) = $matches;
@@ -86,13 +87,14 @@ class SolariumSearch extends Configurable implements Search
         }
         $queryString = implode(' ', $parts);
         if (!is_null($rootClass)) {
-            $queryString = $queryString.' AND type_r:'.str_replace(':', '\\:', $rootClass->getUri());
+            $queryString = '( ' .$queryString.' ) AND type_r:'.str_replace(':', '\\:', $rootClass->getUri());
         }
-        
+
         try {
             $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
+            $query->setQueryDefaultOperator(Query::QUERY_OPERATOR_OR);
             $query->setQuery($queryString)->setRows(100);
-            
+
             // this executes the query and returns the result
             $resultset = $this->getClient()->execute($query);
         } catch (HttpException $e) {
