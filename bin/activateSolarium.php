@@ -31,7 +31,7 @@ $config = array(
         'localhost' => array(
             'host' => '127.0.0.1',
             'port' => 8983,
-            'path' => '/solr/',
+            'path' => '/solr/tao',//your active core should be specified here
         )
     )
 );

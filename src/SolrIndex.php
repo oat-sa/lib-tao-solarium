@@ -33,7 +33,7 @@ use oat\tao\model\search\Index;
  *          'localhost' => array(
  *              'host' => '127.0.0.1',
  *             'port' => 8983,
- *             'path' => '/solr/',
+ *             'path' => '/solr/<core_name>',
  *          )
  *      )
  *  );

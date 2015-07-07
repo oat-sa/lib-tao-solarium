@@ -2,7 +2,8 @@
 	"name": "oat-sa/lib-tao-solarium",
 	"description": "Library to search in Tao using Solarium",
 	"version": "0.9.0",
-	"type": "library",
+    "minimum-stability" : "dev",
+    "type": "library",
 	"authors": [
 		{
 			"name": "Open Assessment Technologies S.A.",
@@ -27,7 +28,7 @@
 	"require" : {
 		"php" : ">=5.3.10",
 		"oat-sa/tao-core" : "*",
-		"solarium/solarium": "dev-master"
+	    "solarium/solarium": "dev-develop"
 	},
     "autoload" : {
         "psr-4" : {
