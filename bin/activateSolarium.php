@@ -1,4 +1,7 @@
 <?php
+define('DEFAULT_HOST', '127.0.0.1');
+define('DEFAULT_PORT', '8983');
+define('DEFAULT_PATH', '/solr/tao');
 
 use oat\tao\solarium\SolariumSearch;
 use oat\tao\model\search\SearchService;
@@ -6,8 +9,8 @@ use oat\tao\model\search\SearchService;
 $parms = $argv;
 array_shift($parms);
 
-if (count($parms) != 1) {
-	echo 'Usage: '.__FILE__.' TAOROOT'.PHP_EOL;
+if (count($parms) < 1) {
+	echo 'Usage: '.__FILE__.' TAOROOT [HOST] [PORT] [PATH]'.PHP_EOL;
 	die(1);
 }
 
@@ -28,13 +31,29 @@ if (!class_exists('oat\\tao\\solarium\\SolariumSearch')) {
 
 $config = array(
     'endpoint' => array(
-        'localhost' => array(
-            'host' => '127.0.0.1',
-            'port' => 8983,
-            'path' => '/solr/',
+        'solrServer' => array(
+            'host' => DEFAULT_HOST,
+            'port' => DEFAULT_PORT,
+            'path' => DEFAULT_PATH,
         )
     )
 );
+
+// host
+if (count($parms) > 0) {
+    $config['endpoint']['solrServer']['host'] = array_shift($parms);
+}
+
+// port
+if (count($parms) > 0) {
+    $config['endpoint']['solrServer']['port'] = array_shift($parms);
+}
+
+// path
+if (count($parms) > 0) {
+    $config['endpoint']['solrServer']['path'] = array_shift($parms);
+}
+
 
 $search = new SolariumSearch($config);
 try {
