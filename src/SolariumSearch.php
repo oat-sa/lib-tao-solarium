@@ -30,9 +30,9 @@ use Solarium\QueryType\Select\Query\Query;
 
 /**
  * Solarium Search implementation
- * 
+ *
  * Sample config
- * 
+ *
  *  $config = array(
  *      'endpoint' => array(
  *          'localhost' => array(
@@ -42,23 +42,23 @@ use Solarium\QueryType\Select\Query\Query;
  *          )
  *      )
  *  );
- * 
+ *
  * @author Joel Bout <joel@taotesting.com>
  */
 class SolariumSearch extends Configurable implements Search
 {
     const SUBSTITUTION_CONFIG_KEY = 'solr_search_map';
-    
+
     /**
-     * 
+     *
      * @var \Solarium\Client
      */
     private $client;
-    
+
     private $substitutes = null;
-    
+
     /**
-     * 
+     *
      * @return \Solarium\Client
      */
     protected function getClient() {
@@ -67,70 +67,47 @@ class SolariumSearch extends Configurable implements Search
         }
         return $this->client;
     }
-    
+
     /**
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::query()
      */
-    public function query($queryString, $rootClass = null) {
-        $parts = explode(' ', $queryString);
-        foreach ($parts as $key => $part) {
+    public function query($queryString, $rootClass = null, $start = 0, $count = 10) {
+        $resultset = $this->getSearchResult( $queryString, $rootClass, $start, $count );
 
-            $matches = array();
-            if (preg_match('/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches) === 1) {
-                list($fullstring, $prefix, $fieldname, $value) = $matches;
-                $sub = $this->getIndexSubstitutions();
-                if (isset($sub[$fieldname])) {
-                    $parts[$key] = $prefix.$sub[$fieldname].':'.$value;
-                }
-            }
-        }
-        $queryString = implode(' ', $parts);
-        if (!is_null($rootClass)) {
-            $queryString = '(' .$queryString.') AND type_r:'.str_replace(':', '\\:', $rootClass->getUri());
-        }
-
-        try {
-            $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
-            $query->setQueryDefaultOperator(Query::QUERY_OPERATOR_OR);
-            $query->setQueryDefaultField('text');
-            $query->setQuery($queryString)->setRows(100);
-
-            // this executes the query and returns the result
-            $resultset = $this->getClient()->execute($query);
-        } catch (HttpException $e) {
-            switch ($e->getCode()) {
-            	case 400 :
-            	    $json = json_decode($e->getBody(), true);
-            	    throw new SyntaxException($queryString, __('There is an error in your search query, system returned: %s', $json['error']['msg']));
-            	default :
-            	    throw new SyntaxException($queryString, __('An unknown error occured during search'));
-            }
-            
-        }
-        
         $uris = array();
         foreach ($resultset as $document) {
             $uris[] = $document->uri;
             //.' : '.implode(',',$document->label);
         }
-        
+
         return $uris;
     }
-    
+
+    /**
+     * (non-PHPdoc)
+     * @see \oat\tao\model\search\Search::getTotalCount()
+     */
+    public function getTotalCount( $queryString, $rootClass = null )
+    {
+        $resultset = $this->getSearchResult( $queryString, $rootClass, 0, 0 );
+
+        return $resultset->getNumFound();
+    }
+
     public function index(\Traversable $resourceTraversable) {
-    
+
         $indexer = new SolariumIndexer($this->getClient(), $resourceTraversable);
         $count = $indexer->run();
-        
+
         // generate index substitution map
-        
+
         $map = array();
         foreach ($indexer->getUsedIndexes() as $index) {
             $map[$index->getIdentifier()] = $index->getSolrId();
         }
         $this->setIndexSubstitutions($map);
-            
+
         return $count;
     }
 
@@ -146,5 +123,61 @@ class SolariumSearch extends Configurable implements Search
         }
         return $this->substitutes;
     }
-    
+
+    /**
+     * @param $queryString
+     * @param $rootClass
+     * @param $start
+     * @param $count
+     *
+     * @return Solarium\QueryType\Select\Result
+     * @throws SyntaxException
+     */
+    protected function getSearchResult( $queryString, $rootClass, $start, $count )
+    {
+        $parts = explode( ' ', $queryString );
+        foreach ($parts as $key => $part) {
+
+            $matches = array();
+            if (preg_match( '/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches ) === 1) {
+                list( $fullstring, $prefix, $fieldname, $value ) = $matches;
+                $sub = $this->getIndexSubstitutions();
+                if (isset( $sub[$fieldname] )) {
+                    $parts[$key] = $prefix . $sub[$fieldname] . ':' . $value;
+                }
+            }
+        }
+        $queryString = implode( ' ', $parts );
+        if ( ! is_null( $rootClass )) {
+            $queryString = '(' . $queryString . ') AND type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
+        }
+
+        try {
+            /** @var \Solarium\QueryType\Select\Query\Query $query */
+            $query = $this->getClient()->createQuery( \Solarium\Client::QUERY_SELECT );
+            $query->setQueryDefaultOperator( Query::QUERY_OPERATOR_OR );
+            $query->setQueryDefaultField( 'text' );
+            $query->setQuery( $queryString )->setRows( $count )->setStart( $start );
+
+            // this executes the query and returns the result
+            /** @var \Solarium\QueryType\Select\Result $resultset */
+            $resultset = $this->getClient()->execute( $query );
+
+        } catch ( HttpException $e ) {
+            switch ($e->getCode()) {
+                case 400 :
+                    $json = json_decode( $e->getBody(), true );
+                    throw new SyntaxException(
+                        $queryString,
+                        __( 'There is an error in your search query, system returned: %s', $json['error']['msg'] )
+                    );
+                default :
+                    throw new SyntaxException( $queryString, __( 'An unknown error occured during search' ) );
+            }
+
+        }
+
+        return $resultset;
+    }
+
 }
