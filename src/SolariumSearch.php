@@ -27,6 +27,7 @@ use oat\oatbox\Configurable;
 use oat\tao\model\search\SyntaxException;
 use Solarium\Exception\HttpException;
 use Solarium\QueryType\Select\Query\Query;
+use oat\tao\model\search\ResultSet;
 
 /**
  * Solarium Search implementation
@@ -81,18 +82,8 @@ class SolariumSearch extends Configurable implements Search
             //.' : '.implode(',',$document->label);
         }
 
-        return $uris;
-    }
+        return new ResultSet($uris, $resultset->getNumFound());
 
-    /**
-     * (non-PHPdoc)
-     * @see \oat\tao\model\search\Search::getTotalCount()
-     */
-    public function getTotalCount( $queryString, $rootClass = null )
-    {
-        $resultset = $this->getSearchResult( $queryString, $rootClass, 0, 0 );
-
-        return $resultset->getNumFound();
     }
 
     public function index(\Traversable $resourceTraversable) {
