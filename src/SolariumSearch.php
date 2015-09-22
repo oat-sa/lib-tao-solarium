@@ -28,6 +28,7 @@ use oat\tao\model\search\SyntaxException;
 use Solarium\Exception\HttpException;
 use Solarium\QueryType\Select\Query\Query;
 use oat\tao\model\search\ResultSet;
+use Solarium\Core\Query\Result\Result;
 
 /**
  * Solarium Search implementation
@@ -74,16 +75,36 @@ class SolariumSearch extends Configurable implements Search
      * @see \oat\tao\model\search\Search::query()
      */
     public function query($queryString, $rootClass = null, $start = 0, $count = 10) {
-        $resultset = $this->getSearchResult( $queryString, $rootClass, $start, $count );
-
-        $uris = array();
-        foreach ($resultset as $document) {
-            $uris[] = $document->uri;
-            //.' : '.implode(',',$document->label);
+        
+        $queryString = $this->buildSearchQuery($queryString, $rootClass);
+        
+        try {
+            /** @var \Solarium\QueryType\Select\Query\Query $query */
+            $query = $this->getClient()->createQuery( \Solarium\Client::QUERY_SELECT );
+            $query->setQueryDefaultOperator( Query::QUERY_OPERATOR_OR );
+            $query->setQueryDefaultField( 'text' );
+            $query->setQuery( $queryString )->setRows( $count )->setStart( $start );
+        
+            // this executes the query and returns the result
+            /** @var \Solarium\QueryType\Select\Result $resultset */
+            $result = $this->getClient()->execute( $query );
+            
+            return $this->buildResultSet($result);
+        
+        } catch ( HttpException $e ) {
+            switch ($e->getCode()) {
+            	case 400 :
+            	    $json = json_decode( $e->getBody(), true );
+            	    throw new SyntaxException(
+            	        $queryString,
+            	        __( 'There is an error in your search query, system returned: %s', $json['error']['msg'] )
+            	    );
+            	default :
+            	    throw new SyntaxException( $queryString, __( 'An unknown error occured during search' ) );
+            }
+        
         }
-
-        return new ResultSet($uris, $resultset->getNumFound());
-
+        
     }
 
     public function index(\Traversable $resourceTraversable) {
@@ -114,21 +135,19 @@ class SolariumSearch extends Configurable implements Search
         }
         return $this->substitutes;
     }
-
+    
     /**
-     * @param $queryString
-     * @param $rootClass
-     * @param $start
-     * @param $count
-     *
-     * @return Solarium\QueryType\Select\Result
-     * @throws SyntaxException
+     * Transform Tao search string into a Solr search string
+     * 
+     * @param string $queryString
+     * @param \core_kernel_classes_Class $rootClass
+     * @return string
      */
-    protected function getSearchResult( $queryString, $rootClass, $start, $count )
+    protected function buildSearchQuery( $queryString, $rootClass )
     {
         $parts = explode( ' ', $queryString );
         foreach ($parts as $key => $part) {
-
+        
             $matches = array();
             if (preg_match( '/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches ) === 1) {
                 list( $fullstring, $prefix, $fieldname, $value ) = $matches;
@@ -142,33 +161,23 @@ class SolariumSearch extends Configurable implements Search
         if ( ! is_null( $rootClass )) {
             $queryString = '(' . $queryString . ') AND type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
         }
-
-        try {
-            /** @var \Solarium\QueryType\Select\Query\Query $query */
-            $query = $this->getClient()->createQuery( \Solarium\Client::QUERY_SELECT );
-            $query->setQueryDefaultOperator( Query::QUERY_OPERATOR_OR );
-            $query->setQueryDefaultField( 'text' );
-            $query->setQuery( $queryString )->setRows( $count )->setStart( $start );
-
-            // this executes the query and returns the result
-            /** @var \Solarium\QueryType\Select\Result $resultset */
-            $resultset = $this->getClient()->execute( $query );
-
-        } catch ( HttpException $e ) {
-            switch ($e->getCode()) {
-                case 400 :
-                    $json = json_decode( $e->getBody(), true );
-                    throw new SyntaxException(
-                        $queryString,
-                        __( 'There is an error in your search query, system returned: %s', $json['error']['msg'] )
-                    );
-                default :
-                    throw new SyntaxException( $queryString, __( 'An unknown error occured during search' ) );
-            }
-
+        return $queryString;
+    }
+    
+    /**
+     * Transform Solr result into a Tao ResultSet
+     * 
+     * @param Result $solrResult
+     * @return \oat\tao\model\search\ResultSet
+     */
+    protected function buildResultSet( Result $solrResult )
+    {
+        $uris = array();
+        foreach ($solrResult as $document) {
+            $uris[] = $document->uri;
+            //.' : '.implode(',',$document->label);
         }
 
-        return $resultset;
+        return new ResultSet($uris, $solrResult->getNumFound());
     }
-
 }
