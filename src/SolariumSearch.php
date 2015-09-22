@@ -27,12 +27,14 @@ use oat\oatbox\Configurable;
 use oat\tao\model\search\SyntaxException;
 use Solarium\Exception\HttpException;
 use Solarium\QueryType\Select\Query\Query;
+use oat\tao\model\search\ResultSet;
+use Solarium\Core\Query\Result\Result;
 
 /**
  * Solarium Search implementation
- * 
+ *
  * Sample config
- * 
+ *
  *  $config = array(
  *      'endpoint' => array(
  *          'localhost' => array(
@@ -42,23 +44,23 @@ use Solarium\QueryType\Select\Query\Query;
  *          )
  *      )
  *  );
- * 
+ *
  * @author Joel Bout <joel@taotesting.com>
  */
 class SolariumSearch extends Configurable implements Search
 {
     const SUBSTITUTION_CONFIG_KEY = 'solr_search_map';
-    
+
     /**
-     * 
+     *
      * @var \Solarium\Client
      */
     private $client;
-    
+
     private $substitutes = null;
-    
+
     /**
-     * 
+     *
      * @return \Solarium\Client
      */
     protected function getClient() {
@@ -67,70 +69,57 @@ class SolariumSearch extends Configurable implements Search
         }
         return $this->client;
     }
-    
+
     /**
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::query()
      */
-    public function query($queryString, $rootClass = null) {
-        $parts = explode(' ', $queryString);
-        foreach ($parts as $key => $part) {
-
-            $matches = array();
-            if (preg_match('/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches) === 1) {
-                list($fullstring, $prefix, $fieldname, $value) = $matches;
-                $sub = $this->getIndexSubstitutions();
-                if (isset($sub[$fieldname])) {
-                    $parts[$key] = $prefix.$sub[$fieldname].':'.$value;
-                }
-            }
-        }
-        $queryString = implode(' ', $parts);
-        if (!is_null($rootClass)) {
-            $queryString = '(' .$queryString.') AND type_r:'.str_replace(':', '\\:', $rootClass->getUri());
-        }
-
+    public function query($queryString, $rootClass = null, $start = 0, $count = 10) {
+        
+        $queryString = $this->buildSearchQuery($queryString, $rootClass);
+        
         try {
-            $query = $this->getClient()->createQuery(\Solarium\Client::QUERY_SELECT);
-            $query->setQueryDefaultOperator(Query::QUERY_OPERATOR_OR);
-            $query->setQueryDefaultField('text');
-            $query->setQuery($queryString)->setRows(100);
-
+            /** @var \Solarium\QueryType\Select\Query\Query $query */
+            $query = $this->getClient()->createQuery( \Solarium\Client::QUERY_SELECT );
+            $query->setQueryDefaultOperator( Query::QUERY_OPERATOR_OR );
+            $query->setQueryDefaultField( 'text' );
+            $query->setQuery( $queryString )->setRows( $count )->setStart( $start );
+        
             // this executes the query and returns the result
-            $resultset = $this->getClient()->execute($query);
-        } catch (HttpException $e) {
+            /** @var \Solarium\QueryType\Select\Result $resultset */
+            $result = $this->getClient()->execute( $query );
+            
+            return $this->buildResultSet($result);
+        
+        } catch ( HttpException $e ) {
             switch ($e->getCode()) {
             	case 400 :
-            	    $json = json_decode($e->getBody(), true);
-            	    throw new SyntaxException($queryString, __('There is an error in your search query, system returned: %s', $json['error']['msg']));
+            	    $json = json_decode( $e->getBody(), true );
+            	    throw new SyntaxException(
+            	        $queryString,
+            	        __( 'There is an error in your search query, system returned: %s', $json['error']['msg'] )
+            	    );
             	default :
-            	    throw new SyntaxException($queryString, __('An unknown error occured during search'));
+            	    throw new SyntaxException( $queryString, __( 'An unknown error occured during search' ) );
             }
-            
+        
         }
         
-        $uris = array();
-        foreach ($resultset as $document) {
-            $uris[] = $document->uri;
-            //.' : '.implode(',',$document->label);
-        }
-        
-        return $uris;
     }
-    
+
     public function index(\Traversable $resourceTraversable) {
-    
+
         $indexer = new SolariumIndexer($this->getClient(), $resourceTraversable);
         $count = $indexer->run();
-        
+
         // generate index substitution map
-        
+
         $map = array();
         foreach ($indexer->getUsedIndexes() as $index) {
             $map[$index->getIdentifier()] = $index->getSolrId();
         }
         $this->setIndexSubstitutions($map);
-            
+
         return $count;
     }
 
@@ -147,4 +136,48 @@ class SolariumSearch extends Configurable implements Search
         return $this->substitutes;
     }
     
+    /**
+     * Transform Tao search string into a Solr search string
+     * 
+     * @param string $queryString
+     * @param \core_kernel_classes_Class $rootClass
+     * @return string
+     */
+    protected function buildSearchQuery( $queryString, $rootClass )
+    {
+        $parts = explode( ' ', $queryString );
+        foreach ($parts as $key => $part) {
+        
+            $matches = array();
+            if (preg_match( '/^([^a-z]*)([a-z\-_]+):(.*)/', $part, $matches ) === 1) {
+                list( $fullstring, $prefix, $fieldname, $value ) = $matches;
+                $sub = $this->getIndexSubstitutions();
+                if (isset( $sub[$fieldname] )) {
+                    $parts[$key] = $prefix . $sub[$fieldname] . ':' . $value;
+                }
+            }
+        }
+        $queryString = implode( ' ', $parts );
+        if ( ! is_null( $rootClass )) {
+            $queryString = '(' . $queryString . ') AND type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
+        }
+        return $queryString;
+    }
+    
+    /**
+     * Transform Solr result into a Tao ResultSet
+     * 
+     * @param Result $solrResult
+     * @return \oat\tao\model\search\ResultSet
+     */
+    protected function buildResultSet( Result $solrResult )
+    {
+        $uris = array();
+        foreach ($solrResult as $document) {
+            $uris[] = $document->uri;
+            //.' : '.implode(',',$document->label);
+        }
+
+        return new ResultSet($uris, $solrResult->getNumFound());
+    }
 }
