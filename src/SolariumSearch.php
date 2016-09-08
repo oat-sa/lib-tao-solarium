@@ -180,4 +180,10 @@ class SolariumSearch extends Configurable implements Search
 
         return new ResultSet($uris, $solrResult->getNumFound());
     }
+    /**
+     * {@inheritdoc}
+     */
+    public function supportComplexQuery() {
+        return true;
+    }
 }
