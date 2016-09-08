@@ -23,12 +23,12 @@ namespace oat\tao\solarium;
 use oat\tao\model\search\Search;
 use common_Logger;
 use Solarium\Client;
-use oat\oatbox\Configurable;
 use oat\tao\model\search\SyntaxException;
 use Solarium\Exception\HttpException;
 use Solarium\QueryType\Select\Query\Query;
 use oat\tao\model\search\ResultSet;
 use Solarium\Core\Query\Result\Result;
+use oat\oatbox\service\ConfigurableService;
 
 /**
  * Solarium Search implementation
@@ -47,7 +47,7 @@ use Solarium\Core\Query\Result\Result;
  *
  * @author Joel Bout <joel@taotesting.com>
  */
-class SolariumSearch extends Configurable implements Search
+class SolariumSearch extends ConfigurableService implements Search
 {
     const SUBSTITUTION_CONFIG_KEY = 'solr_search_map';
 
@@ -107,18 +107,17 @@ class SolariumSearch extends Configurable implements Search
         
     }
 
-    public function index(\Traversable $resourceTraversable) {
+    /**
+     * (non-PHPdoc)
+     * @see \oat\tao\model\search\Search::fullReIndex()
+     */
+    public function fullReIndex(\Traversable $resourceTraversable) {
 
         $indexer = new SolariumIndexer($this->getClient(), $resourceTraversable);
         $count = $indexer->run();
 
         // generate index substitution map
-
-        $map = array();
-        foreach ($indexer->getUsedIndexes() as $index) {
-            $map[$index->getIdentifier()] = $index->getSolrId();
-        }
-        $this->setIndexSubstitutions($map);
+        $this->setIndexSubstitutions($indexer->getIndexMap());
 
         return $count;
     }
@@ -179,5 +178,39 @@ class SolariumSearch extends Configurable implements Search
         }
 
         return new ResultSet($uris, $solrResult->getNumFound());
+    }
+
+    /**
+     * (Re)Generate the index for a given resource
+     * 
+     * @todo implement
+     * @param core_kernel_classes_Resource $resource
+     * @return boolean true if successfully indexed
+     */
+    public function index(\core_kernel_classes_Resource $resource)
+    {
+        throw new \common_exception_NoImplementation();
+    }
+
+    /**
+     * (non-PHPdoc)
+     * @see \oat\tao\model\search\Search::remove()
+     */
+    public function remove($resourceId)
+    {
+        // @todo test
+        $update = $this->getClient()->createUpdate();
+        $update->addDeleteQuery($resourceId);
+        $result = $this->getClient()->update($update);
+        return $this->resources->valid();
+    }
+
+    /**
+     * (non-PHPdoc)
+     * @see \oat\tao\model\search\Search::supportCustomIndex()
+     */
+    public function supportCustomIndex()
+    {
+        return true;
     }
 }
