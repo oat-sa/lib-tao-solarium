@@ -46,8 +46,7 @@ class SolariumDocument
         $this->indexTypes();
     }
 
-    public function add(SolrIndex $index, $values) {
-        $indexName = $index->getSolrId();
+    public function add($indexName, $values) {
         $this->document->$indexName = $values;
     }
     

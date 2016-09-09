@@ -25,6 +25,7 @@ use oat\tao\model\search\Search;
 use oat\tao\model\search\Index;
 use Solarium\Client;
 use Solarium\QueryType\Update\Query\Document\DocumentInterface;
+use oat\tao\model\search\SearchTokenGenerator;
 
 /**
  * Solarium Search implementation
@@ -50,16 +51,18 @@ class SolariumIndexer
     private $client = null;
     
     private $resources = null;
+    /**
+     * @var SearchTokenGenerator
+     */
+    private $tokenGenerator = null;
     
-    private $indexMap = array();
-    
-    private $propertyCache = array();
-    
+    private $map = array();
     
     public function __construct(Client $client, \Traversable $resourceTraversable)
     {
         $this->client = $client;
         $this->resources = $resourceTraversable;
+        $this->tokenGenerator = new SearchTokenGenerator();
     }
 
     public function run() {
@@ -94,54 +97,25 @@ class SolariumIndexer
     
     protected function createDocument($update, \core_kernel_classes_Resource $resource) {
         $document = new SolariumDocument($update, $resource);
-        foreach ($this->getProperties($resource) as $property) {
-            $indexes = $this->getIndexes($property);
-            if (!empty($indexes)) {
-                $values = $resource->getPropertyValues($property);
-                foreach ($indexes as $index) {
-                    $strings = $index->tokenize($values);
-                    $document->add($index, $strings);
-                }
-            }
+        foreach ($this->tokenGenerator->generateTokens($resource) as $data) {
+            list($index, $strings) = $data;
+            $document->add($this->getSolrId($index), $strings);
         }
         return $document->getDocument();
     }
     
-    protected function getProperties(\core_kernel_classes_Resource $resource) {
-        $classProperties = array(new \core_kernel_classes_Property(RDFS_LABEL));
-        foreach ($resource->getTypes() as $type) {
-            $classProperties = array_merge($classProperties, $this->getPropertiesByClass($type));
-        }
-        
-        return $classProperties;
-    }
-    
-    protected function getPropertiesByClass(\core_kernel_classes_Class $type) {
-        if (!isset($this->propertyCache[$type->getUri()])) {
-            $this->propertyCache[$type->getUri()] = $type->getProperties(true);
-            // alternativly use non recursiv and union with getPropertiesByClass of parentclasses
-        }
-        return $this->propertyCache[$type->getUri()];
-    }
-    
-    protected function getIndexes(\core_kernel_classes_Property $property) {
-        if (!isset($this->indexMap[$property->getUri()])) {
-            $this->indexMap[$property->getUri()] = array();
-            $indexes = $property->getPropertyValues(new \core_kernel_classes_Property('http://www.tao.lu/Ontologies/TAO.rdf#PropertyIndex'));
-            foreach ($indexes as $indexUri) {
-                $this->indexMap[$property->getUri()][] = new SolrIndex($indexUri);
+    public function getSolrId(Index $index) {
+        if (!isset($this->map[$index->getIdentifier()])) {
+            $suffix = $index->isFuzzyMatching() ? '_t' : '_s';
+            if ($index->isDefaultSearchable()) {
+                $suffix .= '_d';
             }
+            $this->map[$index->getIdentifier()] = $index->getIdentifier().$suffix;
         }
-        return $this->indexMap[$property->getUri()];
+        return $this->map[$index->getIdentifier()];
     }
     
-    public function getUsedIndexes() {
-        $usedIndexes = array();
-        foreach ($this->indexMap as $indexes) {
-            foreach ($indexes as $index) {
-                $usedIndexes[] = $index;
-            }
-        }
-        return $usedIndexes;
+    public function getIndexMap() {
+        return $this->map;
     }
 }
