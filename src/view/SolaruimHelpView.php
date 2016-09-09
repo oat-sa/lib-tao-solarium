@@ -19,25 +19,48 @@
  *
  */
 namespace oat\tao\solarium\view;
+
+use oat\tao\model\mvc\view\ViewHelperAbstract;
 /**
  * Description of SolaruimHelpView
  *
  * @author Christophe GARCIA <christopheg@taotesting.com>
  */
 class SolaruimHelpView extends ViewHelperAbstract {
-    /**
+     /**
      * return help html
      * @return string
      */
     public function render() {
         
-        return '
-    <span class="icon-help tooltipstered" data-tooltip="~ .tooltip-content:first" data-tooltip-theme="info"></span>
-    <div class="tooltip-content">
+        $render = ' <div class="tooltip-content">
         <div>
-        <strong>enter a keyword</strong>
+        <strong>ex:</strong> <em>label:exam* AND model:QTI</em>
         </div>
-    </div>';
+        <hr style="margin:5px 0;"/>';
+
+        foreach ($this->searchIndex as $uri => $indexes) {
+            foreach ($indexes as $index) {
+                $prop = new \core_kernel_classes_Property($uri);
+                $css  = ($index->isFuzzyMatching()) ? "icon-find" : "icon-target" ;
+                $render .= '<div>
+                                <span class="' . $css . '"></span> <strong>' . _dh($index->getIdentifier()). '</strong> 
+                                    (' . _dh($prop->getLabel()) . ') </div>';
+            }
+        }
+
+        $render .= '<hr style="margin:5px 0;"/>
+            <div class="grid-row" style="min-width:250px; margin: 0">
+                <div class="col-6" style="margin: 0">
+                    <span class="icon-find"></span> = Fuzzy Matching
+                </div>
+                <div class="col-6" style="margin: 0">
+                    <span class="icon-target"></span> = Exact Matching
+                </div>
+            </div>
+        </div>';
+        
+        return $render;
         
     }
     
