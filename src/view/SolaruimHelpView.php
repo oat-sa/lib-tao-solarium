@@ -14,39 +14,31 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Copyright (c) 2014 (original work) Open Assessment Technologies SA;
+ * Copyright (c) 2016 (original work) Open Assessment Technologies SA;
  *
  *
  */
-namespace oat\tao\solarium;
-
-use common_Logger;
-use oat\tao\model\search\Index;
-
+namespace oat\tao\solarium\view;
 /**
- * Solarium Search implementation
- * 
- * Sample config
- * 
- *  $config = array(
- *      'endpoint' => array(
- *          'localhost' => array(
- *              'host' => '127.0.0.1',
- *             'port' => 8983,
- *             'path' => '/solr/',
- *          )
- *      )
- *  );
- * 
- * @author Joel Bout <joel@taotesting.com>
+ * Description of SolaruimHelpView
+ *
+ * @author Christophe GARCIA <christopheg@taotesting.com>
  */
-class SolrIndex extends Index
-{
-    public function getSolrId() {
-        $suffix = $this->isFuzzyMatching() ? '_t' : '_s';
-        if ($this->isDefaultSearchable()) {
-            $suffix .= '_d';
-        }
-        return $this->getIdentifier().$suffix;
+class SolaruimHelpView extends ViewHelperAbstract {
+    /**
+     * return help html
+     * @return string
+     */
+    public function render() {
+        
+        return '
+    <span class="icon-help tooltipstered" data-tooltip="~ .tooltip-content:first" data-tooltip-theme="info"></span>
+    <div class="tooltip-content">
+        <div>
+        <strong>enter a keyword</strong>
+        </div>
+    </div>';
+        
     }
+    
 }
