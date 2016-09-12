@@ -29,6 +29,12 @@ if (!class_exists('oat\\tao\\solarium\\SolariumSearch')) {
     die(1);
 }
 
+$taoVersion = common_ext_ExtensionsManager::singleton()->getInstalledVersion('tao');
+if (version_compare($taoVersion, '7.8.0') < 0) {
+    echo 'Requires Tao 7.8.0 or higher'.PHP_EOL;
+    die(1);
+}
+
 $config = array(
     'endpoint' => array(
         'solrServer' => array(
