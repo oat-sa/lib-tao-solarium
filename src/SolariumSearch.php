@@ -30,6 +30,7 @@ use oat\tao\model\search\ResultSet;
 use Solarium\Core\Query\Result\Result;
 use oat\oatbox\service\ConfigurableService;
 use oat\tao\solarium\view\SolaruimHelpView;
+use oat\tao\model\mvc\view\ViewHelperAwareTrait;
 /**
  * Solarium Search implementation
  *
@@ -58,8 +59,11 @@ class SolariumSearch extends ConfigurableService implements Search
     private $client;
 
     private $substitutes = null;
-    
+
     protected $helpView = SolaruimHelpView::class;
+
+    use ViewHelperAwareTrait;
+
     /**
      *
      * @return \Solarium\Client
@@ -213,18 +217,6 @@ class SolariumSearch extends ConfigurableService implements Search
     public function supportCustomIndex()
     {
         return true;
-    }
-    
-    /**
-     * doesn't supprt complex query
-     * @return \oat\tao\model\mvc\view\ViewHelperAbstract
-     */
-    public function getHelpView() {
-        if(array_key_exists('view', $this->getOptions())) {
-            $this->helpView = $this->getOption('view');
-        }
-        $viewClass = $this->helpView;
-        return new $viewClass();
     }
     
 }
