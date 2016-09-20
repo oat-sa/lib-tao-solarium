@@ -30,6 +30,7 @@ use oat\tao\model\search\ResultSet;
 use Solarium\Core\Query\Result\Result;
 use oat\oatbox\service\ConfigurableService;
 use oat\tao\solarium\view\SolaruimHelpView;
+use oat\tao\model\mvc\view\ViewHelperAwareTrait;
 /**
  * Solarium Search implementation
  *
@@ -50,7 +51,8 @@ use oat\tao\solarium\view\SolaruimHelpView;
 class SolariumSearch extends ConfigurableService implements Search
 {
     const SUBSTITUTION_CONFIG_KEY = 'solr_search_map';
-
+    
+    use ViewHelperAwareTrait;
     /**
      *
      * @var \Solarium\Client

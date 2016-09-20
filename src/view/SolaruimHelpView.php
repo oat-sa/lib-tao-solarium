@@ -22,18 +22,19 @@ namespace oat\tao\solarium\view;
 
 use oat\tao\model\mvc\view\ViewHelperAbstract;
 /**
- * Description of SolaruimHelpView
+ * create help hint rendering for solarium search in tao
  *
  * @author Christophe GARCIA <christopheg@taotesting.com>
  */
 class SolaruimHelpView extends ViewHelperAbstract {
-     /**
+      /**
      * return help html
      * @return string
      */
     public function render() {
         
-        $render = ' <div class="tooltip-content">
+        $render = '<span class="icon-help tooltipstered" data-tooltip="~ .tooltip-content:first" data-tooltip-theme="info"></span>
+            <div class="tooltip-content">
         <div>
         <strong>ex:</strong> <em>label:exam* AND model:QTI</em>
         </div>
