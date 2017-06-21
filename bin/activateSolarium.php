@@ -1,17 +1,15 @@
+#!/usr/bin/env php
 <?php
-define('DEFAULT_HOST', '127.0.0.1');
-define('DEFAULT_PORT', '8983');
-define('DEFAULT_PATH', '/solr/tao');
-
-use oat\tao\solarium\SolariumSearch;
-use oat\tao\model\search\SearchService;
+use oat\oatbox\service\ServiceManager;
+use oat\oatbox\action\ActionService;
+use oat\tao\solarium\Action\InitSolarium;
 
 $parms = $argv;
 array_shift($parms);
 
 if (count($parms) < 1) {
-	echo 'Usage: '.__FILE__.' TAOROOT [HOST] [PORT] [PATH]'.PHP_EOL;
-	die(1);
+    echo 'Usage: '.__FILE__.' TAOROOT [HOST] [PORT] [PATH]'.PHP_EOL;
+    die(1);
 }
 
 $root = rtrim(array_shift($parms), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
@@ -24,52 +22,7 @@ if (!file_exists($rawStart)) {
 
 require_once $rawStart;
 
-if (!class_exists('oat\\tao\\solarium\\SolariumSearch')) {
-    echo 'Tao Solarium Search not found'.PHP_EOL;
-    die(1);
-}
-
-$taoVersion = common_ext_ExtensionsManager::singleton()->getInstalledVersion('tao');
-if (version_compare($taoVersion, '7.8.0') < 0) {
-    echo 'Requires Tao 7.8.0 or higher'.PHP_EOL;
-    die(1);
-}
-
-$config = array(
-    'endpoint' => array(
-        'solrServer' => array(
-            'host' => DEFAULT_HOST,
-            'port' => DEFAULT_PORT,
-            'path' => DEFAULT_PATH,
-        )
-    )
-);
-
-// host
-if (count($parms) > 0) {
-    $config['endpoint']['solrServer']['host'] = array_shift($parms);
-}
-
-// port
-if (count($parms) > 0) {
-    $config['endpoint']['solrServer']['port'] = array_shift($parms);
-}
-
-// path
-if (count($parms) > 0) {
-    $config['endpoint']['solrServer']['path'] = array_shift($parms);
-}
-
-
-$search = new SolariumSearch($config);
-try {
-    $result = $search->query('');
-} catch (Solarium\Exception\HttpException $e) {
-    echo "Solr server not found: ".$e->getMessage().PHP_EOL;
-    die(1);
-}
-
-$success = SearchService::setSearchImplementation($search);
-
-echo "Switched to Solr search using Solarium".PHP_EOL;
-die(0);
+$actionService = ServiceManager::getServiceManager()->get(ActionService::SERVICE_ID);
+$factory = $actionService->resolve(InitSolarium::class);
+$report = $factory->__invoke($parms);
+echo tao_helpers_report_Rendering::renderToCommandline($report);
