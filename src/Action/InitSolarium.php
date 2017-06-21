@@ -69,6 +69,10 @@ class InitSolarium implements Action, ServiceLocatorAwareInterface
             $config['endpoint']['solrServer']['path'] = array_shift($p);
         }
         
+        $taoVersion = $this->getServiceLocator()->get(\common_ext_ExtensionsManager::SERVICE_ID)->getInstalledVersion('tao');
+        if (version_compare($taoVersion, '7.8.0') < 0) {
+            return new Report(Report::TYPE_ERROR, 'Requires Tao 7.8.0 or higher');
+        }
         
         $search = new SolariumSearch($config);
         try {
