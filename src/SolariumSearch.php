@@ -158,7 +158,8 @@ class SolariumSearch extends ConfigurableService implements Search
         }
         $queryString = implode( ' ', $parts );
         if ( ! is_null( $rootClass )) {
-            $queryString = '(' . $queryString . ') AND type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
+            $queryString = (strlen($queryString) == 0 ? '' : '(' . $queryString . ') AND ')
+                .'type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
         }
         return $queryString;
     }
