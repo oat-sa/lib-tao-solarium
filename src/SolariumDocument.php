@@ -25,6 +25,7 @@ use oat\tao\model\search\Search;
 use oat\tao\model\search\Index;
 use Solarium\Client;
 use Solarium\QueryType\Update\Query\Document\DocumentInterface;
+use oat\generis\model\OntologyRdfs;
 
 /**
  * Solarium Document Index
@@ -66,7 +67,7 @@ class SolariumDocument
 //            $document->addField(Document\Field::Text('class', $class->getLabel()));
         }
         
-        $done = array(RDFS_RESOURCE, TAO_OBJECT_CLASS);
+        $done = array(OntologyRdfs::RDFS_RESOURCE, TAO_OBJECT_CLASS);
         $toDo = array_diff($toDo, $done);
         
         $classes = array();
