@@ -32,7 +32,7 @@ class SolariumDocument
     private $document;
     
     private $solrDocument;
-    
+
     public function __construct(\Solarium\QueryType\Update\Query\Query $update, IndexDocument $document)
     {
         $this->document = $document;
@@ -53,7 +53,7 @@ class SolariumDocument
     public function getSolrDocument() {
         return $this->solrDocument;
     }
-    
+
     public function indexUri() {
         $this->solrDocument->uri = $this->document->getId();
     }
@@ -65,5 +65,7 @@ class SolariumDocument
             $this->add($index, $value);
         }
     }
+
+}
 
 }
