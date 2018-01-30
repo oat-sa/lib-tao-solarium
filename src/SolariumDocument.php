@@ -29,40 +29,48 @@ use oat\tao\model\search\index\IndexDocument;
  */
 class SolariumDocument
 {
+    /** @var IndexDocument  */
     private $document;
-    
+
+    /** @var  */
     private $solrDocument;
 
+    /**
+     * SolariumDocument constructor.
+     * @param \Solarium\QueryType\Update\Query\Query $update
+     * @param IndexDocument $document
+     */
     public function __construct(\Solarium\QueryType\Update\Query\Query $update, IndexDocument $document)
     {
         $this->document = $document;
         $this->solrDocument = $update->createDocument();
         
         $this->indexUri();
-        $this->setBody();
     }
 
+    /**
+     * @param $indexName
+     * @param $values
+     */
     public function add($indexName, $values) {
         $this->solrDocument->$indexName = $values;
     }
-    
+
+    /**
+     * @return IndexDocument
+     */
     public function getDocument() {
         return $this->document;
     }
 
+    /**
+     * @return mixed
+     */
     public function getSolrDocument() {
         return $this->solrDocument;
     }
 
     public function indexUri() {
         $this->solrDocument->uri = $this->document->getId();
-    }
-
-    public function setBody()
-    {
-        $body = $this->getDocument()->getBody();
-        foreach ($body as $index => $value) {
-            $this->add($index, $value);
-        }
     }
 }

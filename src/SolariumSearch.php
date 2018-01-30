@@ -88,7 +88,7 @@ class SolariumSearch extends ConfigurableService implements Search
             $query->setQuery( $queryString )->setRows( $count )->setStart( $start );
         
             // this executes the query and returns the result
-            /** @var \Solarium\QueryType\Select\Result $resultset */
+            /** @var Result $resultset */
             $result = $this->getClient()->execute( $query );
             
             return $this->buildResultSet($result);
@@ -118,16 +118,21 @@ class SolariumSearch extends ConfigurableService implements Search
         $indexer = new SolariumIndexer($this->getClient(), $documentTraversable);
         $count = $indexer->run();
 
+        // generate index substitution map
+        $this->setIndexSubstitutions($indexer->getIndexMap());
+
         return $count;
     }
 
     public function setIndexSubstitutions($map) {
+        $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
+        $ext->setConfig(self::SUBSTITUTION_CONFIG_KEY, $map);
         $this->substitutes = $map;
     }
 
     public function getIndexSubstitutions() {
         if (is_null($this->substitutes)) {
-            $this->substitutes = $this->getServiceLocator()->get(IndexService::SERVICE_ID)->getOption(IndexService::SUBSTITUTION_CONFIG_KEY);
+            $this->substitutes = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao')->getConfig(self::SUBSTITUTION_CONFIG_KEY);
         }
         return $this->substitutes;
     }
@@ -167,15 +172,15 @@ class SolariumSearch extends ConfigurableService implements Search
      * @param Result $solrResult
      * @return \oat\tao\model\search\ResultSet
      */
-    protected function buildResultSet( Result $solrResult )
+    protected function buildResultSet(Result $solrResult)
     {
-        $uris = array();
+        $uris = [];
         foreach ($solrResult as $document) {
             $uris[] = $document->uri;
             //.' : '.implode(',',$document->label);
         }
 
-        return new ResultSet(['ids' => $uris], $solrResult->getNumFound());
+        return new ResultSet($uris, $solrResult->getNumFound());
     }
 
     /**
@@ -199,7 +204,7 @@ class SolariumSearch extends ConfigurableService implements Search
     {
         $indexer = new SolariumIndexer($this->getClient(), $documentTraversable);
         $count = $indexer->addList();
-        return true;
+        return $count;
     }
 
     /**
@@ -212,7 +217,7 @@ class SolariumSearch extends ConfigurableService implements Search
         $update = $this->getClient()->createUpdate();
         $update->addDeleteQuery($resourceId);
         $result = $this->getClient()->update($update);
-        return $this->resources->valid();
+        return true;
     }
 
     /**
