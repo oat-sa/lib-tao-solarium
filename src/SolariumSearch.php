@@ -20,6 +20,8 @@
  */
 namespace oat\tao\solarium;
 
+use oat\tao\model\search\index\IndexDocument;
+use oat\tao\model\search\index\IndexService;
 use oat\tao\model\search\Search;
 use common_Logger;
 use Solarium\Client;
@@ -111,26 +113,21 @@ class SolariumSearch extends ConfigurableService implements Search
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::fullReIndex()
      */
-    public function fullReIndex(\Traversable $resourceTraversable) {
+    public function fullReIndex(\Traversable $documentTraversable) {
 
-        $indexer = new SolariumIndexer($this->getClient(), $resourceTraversable);
+        $indexer = new SolariumIndexer($this->getClient(), $documentTraversable);
         $count = $indexer->run();
-
-        // generate index substitution map
-        $this->setIndexSubstitutions($indexer->getIndexMap());
 
         return $count;
     }
 
     public function setIndexSubstitutions($map) {
-        $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
-        $ext->setConfig(self::SUBSTITUTION_CONFIG_KEY, $map);
         $this->substitutes = $map;
     }
 
     public function getIndexSubstitutions() {
         if (is_null($this->substitutes)) {
-            $this->substitutes = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao')->getConfig(self::SUBSTITUTION_CONFIG_KEY);
+            $this->substitutes = $this->getServiceLocator()->get(IndexService::SERVICE_ID)->getOption(IndexService::SUBSTITUTION_CONFIG_KEY);
         }
         return $this->substitutes;
     }
@@ -178,19 +175,31 @@ class SolariumSearch extends ConfigurableService implements Search
             //.' : '.implode(',',$document->label);
         }
 
-        return new ResultSet($uris, $solrResult->getNumFound());
+        return new ResultSet(['ids' => $uris], $solrResult->getNumFound());
     }
 
     /**
      * (Re)Generate the index for a given resource
      * 
-     * @todo implement
-     * @param core_kernel_classes_Resource $resource
+     * @param IndexDocument $document
      * @return boolean true if successfully indexed
      */
-    public function index(\core_kernel_classes_Resource $resource)
+    public function index(IndexDocument $document)
     {
-        throw new \common_exception_NoImplementation();
+        $indexer = new SolariumIndexer($this->getClient());
+        $indexer->add($document);
+        return true;
+    }
+
+    /**
+     * @param \Traversable $documentTraversable
+     * @return mixed|void
+     */
+    public function addIndexes(\Traversable $documentTraversable)
+    {
+        $indexer = new SolariumIndexer($this->getClient(), $documentTraversable);
+        $count = $indexer->addList();
+        return true;
     }
 
     /**

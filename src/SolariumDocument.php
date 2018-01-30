@@ -20,11 +20,7 @@
  */
 namespace oat\tao\solarium;
 
-use common_Logger;
-use oat\tao\model\search\Search;
-use oat\tao\model\search\Index;
-use Solarium\Client;
-use Solarium\QueryType\Update\Query\Document\DocumentInterface;
+use oat\tao\model\search\index\IndexDocument;
 
 /**
  * Solarium Document Index
@@ -33,56 +29,41 @@ use Solarium\QueryType\Update\Query\Document\DocumentInterface;
  */
 class SolariumDocument
 {
-    private $resource;
-    
     private $document;
     
-    public function __construct(\Solarium\QueryType\Update\Query\Query $update, \core_kernel_classes_Resource $resource)
+    private $solrDocument;
+    
+    public function __construct(\Solarium\QueryType\Update\Query\Query $update, IndexDocument $document)
     {
-        $this->resource = $resource;
-        $this->document = $update->createDocument();
+        $this->document = $document;
+        $this->solrDocument = $update->createDocument();
         
         $this->indexUri();
-        $this->indexTypes();
+        $this->setBody();
     }
 
     public function add($indexName, $values) {
-        $this->document->$indexName = $values;
+        $this->solrDocument->$indexName = $values;
     }
     
     public function getDocument() {
         return $this->document;
     }
+
+    public function getSolrDocument() {
+        return $this->solrDocument;
+    }
     
     public function indexUri() {
-        $this->document->uri = $this->resource->getUri();
+        $this->solrDocument->uri = $this->document->getId();
     }
-     
-    public function indexTypes() {
-        
-        $toDo = array();
-        foreach ($this->resource->getTypes() as $class) {
-            $toDo[] = $class->getUri();
-//            $document->addField(Document\Field::Text('class', $class->getLabel()));
+
+    public function setBody()
+    {
+        $body = $this->getDocument()->getBody();
+        foreach ($body as $index => $value) {
+            $this->add($index, $value);
         }
-        
-        $done = array(RDFS_RESOURCE, TAO_OBJECT_CLASS);
-        $toDo = array_diff($toDo, $done);
-        
-        $classes = array();
-        while (!empty($toDo)) {
-            $class = new \core_kernel_classes_Class(array_pop($toDo));
-            $classes[] = $class->getUri();
-            foreach ($class->getParentClasses() as $parent) {
-                if (!in_array($parent->getUri(), $done)) {
-                    $toDo[] = $parent->getUri();
-                }
-            }
-            $done[] = $class->getUri();
-        }
-        
-        $this->document->type_r = $classes; 
     }
-    
 
 }
