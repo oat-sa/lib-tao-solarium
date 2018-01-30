@@ -65,7 +65,4 @@ class SolariumDocument
             $this->add($index, $value);
         }
     }
-
-}
-
 }
