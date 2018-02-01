@@ -29,10 +29,14 @@ use oat\tao\model\search\index\IndexDocument;
  */
 class SolariumDocument
 {
-    /** @var IndexDocument  */
+    /**
+     * @var IndexDocument
+     */
     private $document;
 
-    /** @var  */
+    /**
+     * @var \Solarium\QueryType\Update\Query\Document\DocumentInterface
+     */
     private $solrDocument;
 
     /**
@@ -64,7 +68,7 @@ class SolariumDocument
     }
 
     /**
-     * @return mixed
+     * @return \Solarium\QueryType\Update\Query\Document\DocumentInterface
      */
     public function getSolrDocument() {
         return $this->solrDocument;

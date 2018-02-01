@@ -21,6 +21,7 @@
 namespace oat\tao\solarium;
 
 use oat\tao\model\search\index\IndexDocument;
+use oat\tao\model\search\index\IndexIterator;
 use oat\tao\model\search\index\IndexService;
 use oat\tao\model\search\Search;
 use common_Logger;
@@ -124,12 +125,21 @@ class SolariumSearch extends ConfigurableService implements Search
         return $count;
     }
 
+    /**
+     * @param $map
+     * @throws \common_exception_Error
+     * @throws \common_ext_ExtensionException
+     */
     public function setIndexSubstitutions($map) {
         $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
         $ext->setConfig(self::SUBSTITUTION_CONFIG_KEY, $map);
         $this->substitutes = $map;
     }
 
+    /**
+     * @return mixed|null
+     * @throws \common_ext_ExtensionException
+     */
     public function getIndexSubstitutions() {
         if (is_null($this->substitutes)) {
             $this->substitutes = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao')->getConfig(self::SUBSTITUTION_CONFIG_KEY);
@@ -186,25 +196,14 @@ class SolariumSearch extends ConfigurableService implements Search
     /**
      * (Re)Generate the index for a given resource
      * 
-     * @param IndexDocument $document
+     * @param IndexIterator|array $documents
      * @return boolean true if successfully indexed
      */
-    public function index(IndexDocument $document)
+    public function index($documents = [])
     {
-        $indexer = new SolariumIndexer($this->getClient());
-        $indexer->add($document);
+        $indexer = new SolariumIndexer($this->getClient(), $documents);
+        $indexer->index();
         return true;
-    }
-
-    /**
-     * @param \Traversable $documentTraversable
-     * @return mixed|void
-     */
-    public function addIndexes(\Traversable $documentTraversable)
-    {
-        $indexer = new SolariumIndexer($this->getClient(), $documentTraversable);
-        $count = $indexer->addList();
-        return $count;
     }
 
     /**

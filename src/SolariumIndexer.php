@@ -21,6 +21,7 @@
 namespace oat\tao\solarium;
 
 use oat\tao\model\search\index\IndexDocument;
+use oat\tao\model\search\index\IndexIterator;
 use oat\tao\model\search\index\IndexProperty;
 use Solarium\Client;
 use oat\tao\model\search\SearchTokenGenerator;
@@ -52,8 +53,8 @@ class SolariumIndexer
     /** @var array  */
     private $map = [];
 
-    /** @var null|\Traversable  */
-    private $document = null;
+    /** @var null|IndexIterator  */
+    private $documents = null;
 
     /**
      * @var SearchTokenGenerator
@@ -63,12 +64,12 @@ class SolariumIndexer
     /**
      * SolariumIndexer constructor.
      * @param Client $client
-     * @param \Traversable|null $documentTraversable
+     * @param IndexIterator|array $documentTraversable
      */
-    public function __construct(Client $client, \Traversable $documentTraversable = null)
+    public function __construct(Client $client, $documentTraversable)
     {
         $this->client = $client;
-        $this->document = $documentTraversable;
+        $this->documents = $documentTraversable;
         $this->tokenGenerator = new SearchTokenGenerator();
     }
 
@@ -81,28 +82,39 @@ class SolariumIndexer
         $update = $this->client->createUpdate();
         $update->addDeleteQuery('*:*');
         $result = $this->client->update($update);
-        $count = $this->addList();
+        $count = $this->index();
         return $count;
     }
 
     /**
      * @return int
+     * @throws \common_Exception
+     * @throws \common_exception_InconsistentData
      */
-    public function addList()
+    public function index()
     {
         $count = 0;
 
-        while ($this->document->valid()) {
-            $update = $this->client->createUpdate();
-            $blockSize = 0;
-            while ($this->document->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
-                $document = $this->createDocument($update, $this->document->current());
-                $update->addDocuments(array($document));
-                $blockSize++;
-                $this->document->next();
+        if ($this->documents instanceof IndexIterator) {
+            while ($this->documents->valid()) {
+                $update = $this->client->createUpdate();
+                $blockSize = 0;
+                while ($this->documents->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
+                    $document = $this->createDocument($update, $this->documents->current());
+                    $update->addDocuments(array($document));
+                    $blockSize++;
+                    $this->documents->next();
+                }
+                $result = $this->client->update($update);
+                $count += $blockSize;
             }
-            $result = $this->client->update($update);
-            $count += $blockSize;
+        } else {
+            foreach ($this->documents as $document) {
+                $update = $this->client->createUpdate();
+                $solrDocument = $this->createDocument($update, $document);
+                $update->addDocuments(array($solrDocument));
+                $result = $this->client->update($update);
+            }
         }
 
         $update = $this->client->createUpdate();
@@ -111,22 +123,6 @@ class SolariumIndexer
         $result = $this->client->update($update);
 
         return $count;
-    }
-
-    /**
-     * @param IndexDocument $document
-     */
-    public function add(IndexDocument $document)
-    {
-        $update = $this->client->createUpdate();
-        $solrDocument = $this->createDocument($update, $document);
-        $update->addDocuments(array($solrDocument));
-        $result = $this->client->update($update);
-
-        $update = $this->client->createUpdate();
-        $update->addCommit();
-        $update->addOptimize();
-        $result = $this->client->update($update);
     }
 
     /**
