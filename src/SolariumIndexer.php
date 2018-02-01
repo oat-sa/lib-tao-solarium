@@ -24,7 +24,6 @@ use oat\tao\model\search\index\IndexDocument;
 use oat\tao\model\search\index\IndexIterator;
 use oat\tao\model\search\index\IndexProperty;
 use Solarium\Client;
-use oat\tao\model\search\SearchTokenGenerator;
 
 /**
  * Solarium Search implementation
@@ -57,11 +56,6 @@ class SolariumIndexer
     private $documents = null;
 
     /**
-     * @var SearchTokenGenerator
-     */
-    private $tokenGenerator = null;
-
-    /**
      * SolariumIndexer constructor.
      * @param Client $client
      * @param IndexIterator|array $documentTraversable
@@ -70,20 +64,6 @@ class SolariumIndexer
     {
         $this->client = $client;
         $this->documents = $documentTraversable;
-        $this->tokenGenerator = new SearchTokenGenerator();
-    }
-
-    /**
-     * @return int
-     */
-    public function run()
-    {
-        // flush existing index
-        $update = $this->client->createUpdate();
-        $update->addDeleteQuery('*:*');
-        $result = $this->client->update($update);
-        $count = $this->index();
-        return $count;
     }
 
     /**

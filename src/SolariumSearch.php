@@ -112,17 +112,14 @@ class SolariumSearch extends ConfigurableService implements Search
 
     /**
      * (non-PHPdoc)
-     * @see \oat\tao\model\search\Search::fullReIndex()
+     * @see \oat\tao\model\search\Search::flush()
      */
-    public function fullReIndex(\Traversable $documentTraversable) {
-
-        $indexer = new SolariumIndexer($this->getClient(), $documentTraversable);
-        $count = $indexer->run();
-
-        // generate index substitution map
-        $this->setIndexSubstitutions($indexer->getIndexMap());
-
-        return $count;
+    public function flush() {
+        // flush existing index
+        $update = $this->getClient()->createUpdate();
+        $update->addDeleteQuery('*:*');
+        $result = $this->getClient()->update($update);
+        $this->setIndexSubstitutions([]);
     }
 
     /**
@@ -202,8 +199,10 @@ class SolariumSearch extends ConfigurableService implements Search
     public function index($documents = [])
     {
         $indexer = new SolariumIndexer($this->getClient(), $documents);
-        $indexer->index();
-        return true;
+        $count = $indexer->index();
+        $map = $this->getIndexSubstitutions();
+        $this->setIndexSubstitutions(array_merge($map, $indexer->getIndexMap()));
+        return $count;
     }
 
     /**
