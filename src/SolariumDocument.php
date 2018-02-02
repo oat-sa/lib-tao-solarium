@@ -20,13 +20,8 @@
  */
 namespace oat\tao\solarium;
 
-use common_Logger;
-use oat\tao\model\search\Search;
-use oat\tao\model\search\Index;
-use Solarium\Client;
-use Solarium\QueryType\Update\Query\Document\DocumentInterface;
-use oat\generis\model\OntologyRdfs;
-use oat\tao\model\TaoOntology;
+use oat\tao\model\search\index\IndexDocument;
+
 /**
  * Solarium Document Index
  * 
@@ -34,56 +29,52 @@ use oat\tao\model\TaoOntology;
  */
 class SolariumDocument
 {
-    private $resource;
-    
+    /**
+     * @var IndexDocument
+     */
     private $document;
-    
-    public function __construct(\Solarium\QueryType\Update\Query\Query $update, \core_kernel_classes_Resource $resource)
+
+    /**
+     * @var \Solarium\QueryType\Update\Query\Document\DocumentInterface
+     */
+    private $solrDocument;
+
+    /**
+     * SolariumDocument constructor.
+     * @param \Solarium\QueryType\Update\Query\Query $update
+     * @param IndexDocument $document
+     */
+    public function __construct(\Solarium\QueryType\Update\Query\Query $update, IndexDocument $document)
     {
-        $this->resource = $resource;
-        $this->document = $update->createDocument();
+        $this->document = $document;
+        $this->solrDocument = $update->createDocument();
         
         $this->indexUri();
-        $this->indexTypes();
     }
 
+    /**
+     * @param $indexName
+     * @param $values
+     */
     public function add($indexName, $values) {
-        $this->document->$indexName = $values;
+        $this->solrDocument->$indexName = $values;
     }
-    
+
+    /**
+     * @return IndexDocument
+     */
     public function getDocument() {
         return $this->document;
     }
-    
-    public function indexUri() {
-        $this->document->uri = $this->resource->getUri();
-    }
-     
-    public function indexTypes() {
-        
-        $toDo = array();
-        foreach ($this->resource->getTypes() as $class) {
-            $toDo[] = $class->getUri();
-//            $document->addField(Document\Field::Text('class', $class->getLabel()));
-        }
-        
-        $done = array(OntologyRdfs::RDFS_RESOURCE, TaoOntology::OBJECT_CLASS_URI);
-        $toDo = array_diff($toDo, $done);
-        
-        $classes = array();
-        while (!empty($toDo)) {
-            $class = new \core_kernel_classes_Class(array_pop($toDo));
-            $classes[] = $class->getUri();
-            foreach ($class->getParentClasses() as $parent) {
-                if (!in_array($parent->getUri(), $done)) {
-                    $toDo[] = $parent->getUri();
-                }
-            }
-            $done[] = $class->getUri();
-        }
-        
-        $this->document->type_r = $classes; 
-    }
-    
 
+    /**
+     * @return \Solarium\QueryType\Update\Query\Document\DocumentInterface
+     */
+    public function getSolrDocument() {
+        return $this->solrDocument;
+    }
+
+    public function indexUri() {
+        $this->solrDocument->uri = $this->document->getId();
+    }
 }

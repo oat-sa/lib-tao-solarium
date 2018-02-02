@@ -20,12 +20,10 @@
  */
 namespace oat\tao\solarium;
 
-use common_Logger;
-use oat\tao\model\search\Search;
-use oat\tao\model\search\Index;
+use oat\tao\model\search\index\IndexDocument;
+use oat\tao\model\search\index\IndexIterator;
+use oat\tao\model\search\index\IndexProperty;
 use Solarium\Client;
-use Solarium\QueryType\Update\Query\Document\DocumentInterface;
-use oat\tao\model\search\SearchTokenGenerator;
 
 /**
  * Solarium Search implementation
@@ -47,75 +45,102 @@ use oat\tao\model\search\SearchTokenGenerator;
 class SolariumIndexer
 {
     const INDEXING_BLOCK_SIZE = 100;
-    
+
+    /** @var null|Client  */
     private $client = null;
-    
-    private $resources = null;
+
+    /** @var array  */
+    private $map = [];
+
+    /** @var null|IndexIterator  */
+    private $documents = null;
+
     /**
-     * @var SearchTokenGenerator
+     * SolariumIndexer constructor.
+     * @param Client $client
+     * @param IndexIterator|array $documentTraversable
      */
-    private $tokenGenerator = null;
-    
-    private $map = array();
-    
-    public function __construct(Client $client, \Traversable $resourceTraversable)
+    public function __construct(Client $client, $documentTraversable)
     {
         $this->client = $client;
-        $this->resources = $resourceTraversable;
-        $this->tokenGenerator = new SearchTokenGenerator();
+        $this->documents = $documentTraversable;
     }
 
-    public function run() {
-    
+    /**
+     * @return int
+     * @throws \common_Exception
+     * @throws \common_exception_InconsistentData
+     */
+    public function index()
+    {
         $count = 0;
-    
-        // flush existing index
-        $update = $this->client->createUpdate();
-        $update->addDeleteQuery('*:*');
-        $result = $this->client->update($update);
-    
-        while ($this->resources->valid()) {
-            $update = $this->client->createUpdate();
-            $blockSize = 0;
-            while ($this->resources->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
-                $document = $this->createDocument($update, $this->resources->current());
-                $update->addDocuments(array($document));
-                $blockSize++;
-                $this->resources->next();
+
+        if ($this->documents instanceof IndexIterator) {
+            while ($this->documents->valid()) {
+                $update = $this->client->createUpdate();
+                $blockSize = 0;
+                while ($this->documents->valid() && $blockSize < self::INDEXING_BLOCK_SIZE) {
+                    $document = $this->createDocument($update, $this->documents->current());
+                    $update->addDocuments(array($document));
+                    $blockSize++;
+                    $this->documents->next();
+                }
+                $result = $this->client->update($update);
+                $count += $blockSize;
             }
-            $result = $this->client->update($update);
-            $count += $blockSize;
+        } else {
+            foreach ($this->documents as $document) {
+                $update = $this->client->createUpdate();
+                $solrDocument = $this->createDocument($update, $document);
+                $update->addDocuments(array($solrDocument));
+                $result = $this->client->update($update);
+            }
         }
-    
+
         $update = $this->client->createUpdate();
         $update->addCommit();
         $update->addOptimize();
         $result = $this->client->update($update);
-    
+
         return $count;
     }
-    
-    protected function createDocument($update, \core_kernel_classes_Resource $resource) {
-        $document = new SolariumDocument($update, $resource);
-        foreach ($this->tokenGenerator->generateTokens($resource) as $data) {
-            list($index, $strings) = $data;
-            $document->add($this->getSolrId($index), $strings);
-        }
-        return $document->getDocument();
-    }
-    
-    public function getSolrId(Index $index) {
-        if (!isset($this->map[$index->getIdentifier()])) {
-            $suffix = $index->isFuzzyMatching() ? '_t' : '_s';
-            if ($index->isDefaultSearchable()) {
-                $suffix .= '_d';
-            }
-            $this->map[$index->getIdentifier()] = $index->getIdentifier().$suffix;
-        }
-        return $this->map[$index->getIdentifier()];
-    }
-    
-    public function getIndexMap() {
+
+    /**
+     * @return array
+     */
+    public function getIndexMap()
+    {
         return $this->map;
     }
+
+    /**
+     * @param $update
+     * @param IndexDocument $document
+     * @return \Solarium\QueryType\Update\Query\Document\DocumentInterface
+     */
+    protected function createDocument($update, IndexDocument $document)
+    {
+        $document = new SolariumDocument($update, $document);
+        $body = $document->getDocument()->getBody();
+        $indexProperties = $document->getDocument()->getIndexProperties();
+        foreach ($body as $index => $value) {
+            $prefix = '';
+            if (isset($indexProperties[$index])) {
+                /** @var IndexProperty $indexProperty */
+                $indexProperty = $indexProperties[$index];
+                $prefix = $indexProperty->isFuzzy() ? '_t' : '_s';
+                $prefix .= $indexProperty->isDefault() ? '_d' : '';
+                $document->add($index.$prefix, $value);
+                $this->map[$index] = $index.$prefix;
+            }
+
+            if ($index == 'type') {
+                $index = $index.'_r';
+                $document->add($index, $value);
+                $this->map[$index] = $index.$prefix;
+            }
+        }
+        return $document->getSolrDocument();
+    }
+
 }
