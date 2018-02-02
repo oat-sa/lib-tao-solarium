@@ -21,9 +21,6 @@
 namespace oat\tao\solarium\Action;
 
 use oat\tao\solarium\SolariumSearch;
-use oat\tao\model\search\SearchService;
-use Zend\ServiceManager\ServiceLocatorAwareInterface;
-use Zend\ServiceManager\ServiceLocatorAwareTrait;
 use common_report_Report as Report;
 use oat\tao\model\search\SyntaxException;
 use oat\oatbox\extension\InstallAction;
