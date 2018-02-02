@@ -77,9 +77,9 @@ class SolariumSearch extends ConfigurableService implements Search
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::query()
      */
-    public function query($queryString, $rootClass = null, $start = 0, $count = 10) {
+    public function query($queryString, $type, $start = 0, $count = 10) {
         
-        $queryString = $this->buildSearchQuery($queryString, $rootClass);
+        $queryString = $this->buildSearchQuery($queryString, $type);
         
         try {
             /** @var \Solarium\QueryType\Select\Query\Query $query */
@@ -139,7 +139,11 @@ class SolariumSearch extends ConfigurableService implements Search
      */
     public function getIndexSubstitutions() {
         if (is_null($this->substitutes)) {
-            $this->substitutes = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao')->getConfig(self::SUBSTITUTION_CONFIG_KEY);
+            $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
+            $this->substitutes = $ext->hasConfig(self::SUBSTITUTION_CONFIG_KEY)
+                ? $ext->getConfig(self::SUBSTITUTION_CONFIG_KEY)
+                : []
+            ;
         }
         return $this->substitutes;
     }
@@ -148,10 +152,10 @@ class SolariumSearch extends ConfigurableService implements Search
      * Transform Tao search string into a Solr search string
      * 
      * @param string $queryString
-     * @param \core_kernel_classes_Class $rootClass
+     * @param string $rootClass
      * @return string
      */
-    protected function buildSearchQuery( $queryString, $rootClass )
+    protected function buildSearchQuery( $queryString, $type )
     {
         $parts = explode( ' ', $queryString );
         foreach ($parts as $key => $part) {
@@ -166,10 +170,8 @@ class SolariumSearch extends ConfigurableService implements Search
             }
         }
         $queryString = implode( ' ', $parts );
-        if ( ! is_null( $rootClass )) {
-            $queryString = (strlen($queryString) == 0 ? '' : '(' . $queryString . ') AND ')
-                .'type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
-        }
+        $queryString = (strlen($queryString) == 0 ? '' : '(' . $queryString . ') AND ')
+            .'type_r:' . str_replace( ':', '\\:', $type );
         return $queryString;
     }
     
