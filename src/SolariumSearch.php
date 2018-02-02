@@ -20,6 +20,9 @@
  */
 namespace oat\tao\solarium;
 
+use oat\tao\model\search\index\IndexDocument;
+use oat\tao\model\search\index\IndexIterator;
+use oat\tao\model\search\index\IndexService;
 use oat\tao\model\search\Search;
 use common_Logger;
 use Solarium\Client;
@@ -74,9 +77,9 @@ class SolariumSearch extends ConfigurableService implements Search
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::query()
      */
-    public function query($queryString, $rootClass = null, $start = 0, $count = 10) {
+    public function query($queryString, $type, $start = 0, $count = 10) {
         
-        $queryString = $this->buildSearchQuery($queryString, $rootClass);
+        $queryString = $this->buildSearchQuery($queryString, $type);
         
         try {
             /** @var \Solarium\QueryType\Select\Query\Query $query */
@@ -86,7 +89,7 @@ class SolariumSearch extends ConfigurableService implements Search
             $query->setQuery( $queryString )->setRows( $count )->setStart( $start );
         
             // this executes the query and returns the result
-            /** @var \Solarium\QueryType\Select\Result $resultset */
+            /** @var Result $resultset */
             $result = $this->getClient()->execute( $query );
             
             return $this->buildResultSet($result);
@@ -109,28 +112,38 @@ class SolariumSearch extends ConfigurableService implements Search
 
     /**
      * (non-PHPdoc)
-     * @see \oat\tao\model\search\Search::fullReIndex()
+     * @see \oat\tao\model\search\Search::flush()
      */
-    public function fullReIndex(\Traversable $resourceTraversable) {
-
-        $indexer = new SolariumIndexer($this->getClient(), $resourceTraversable);
-        $count = $indexer->run();
-
-        // generate index substitution map
-        $this->setIndexSubstitutions($indexer->getIndexMap());
-
-        return $count;
+    public function flush() {
+        // flush existing index
+        $update = $this->getClient()->createUpdate();
+        $update->addDeleteQuery('*:*');
+        $result = $this->getClient()->update($update);
+        $this->setIndexSubstitutions([]);
     }
 
+    /**
+     * @param $map
+     * @throws \common_exception_Error
+     * @throws \common_ext_ExtensionException
+     */
     public function setIndexSubstitutions($map) {
         $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
         $ext->setConfig(self::SUBSTITUTION_CONFIG_KEY, $map);
         $this->substitutes = $map;
     }
 
+    /**
+     * @return mixed|null
+     * @throws \common_ext_ExtensionException
+     */
     public function getIndexSubstitutions() {
         if (is_null($this->substitutes)) {
-            $this->substitutes = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao')->getConfig(self::SUBSTITUTION_CONFIG_KEY);
+            $ext = \common_ext_ExtensionsManager::singleton()->getExtensionById('tao');
+            $this->substitutes = $ext->hasConfig(self::SUBSTITUTION_CONFIG_KEY)
+                ? $ext->getConfig(self::SUBSTITUTION_CONFIG_KEY)
+                : []
+            ;
         }
         return $this->substitutes;
     }
@@ -139,10 +152,10 @@ class SolariumSearch extends ConfigurableService implements Search
      * Transform Tao search string into a Solr search string
      * 
      * @param string $queryString
-     * @param \core_kernel_classes_Class $rootClass
+     * @param string $rootClass
      * @return string
      */
-    protected function buildSearchQuery( $queryString, $rootClass )
+    protected function buildSearchQuery( $queryString, $type )
     {
         $parts = explode( ' ', $queryString );
         foreach ($parts as $key => $part) {
@@ -157,10 +170,8 @@ class SolariumSearch extends ConfigurableService implements Search
             }
         }
         $queryString = implode( ' ', $parts );
-        if ( ! is_null( $rootClass )) {
-            $queryString = (strlen($queryString) == 0 ? '' : '(' . $queryString . ') AND ')
-                .'type_r:' . str_replace( ':', '\\:', $rootClass->getUri() );
-        }
+        $queryString = (strlen($queryString) == 0 ? '' : '(' . $queryString . ') AND ')
+            .'type_r:' . str_replace( ':', '\\:', $type );
         return $queryString;
     }
     
@@ -170,9 +181,9 @@ class SolariumSearch extends ConfigurableService implements Search
      * @param Result $solrResult
      * @return \oat\tao\model\search\ResultSet
      */
-    protected function buildResultSet( Result $solrResult )
+    protected function buildResultSet(Result $solrResult)
     {
-        $uris = array();
+        $uris = [];
         foreach ($solrResult as $document) {
             $uris[] = $document->uri;
             //.' : '.implode(',',$document->label);
@@ -184,13 +195,16 @@ class SolariumSearch extends ConfigurableService implements Search
     /**
      * (Re)Generate the index for a given resource
      * 
-     * @todo implement
-     * @param core_kernel_classes_Resource $resource
+     * @param IndexIterator|array $documents
      * @return boolean true if successfully indexed
      */
-    public function index(\core_kernel_classes_Resource $resource)
+    public function index($documents = [])
     {
-        throw new \common_exception_NoImplementation();
+        $indexer = new SolariumIndexer($this->getClient(), $documents);
+        $count = $indexer->index();
+        $map = $this->getIndexSubstitutions();
+        $this->setIndexSubstitutions(array_merge($map, $indexer->getIndexMap()));
+        return $count;
     }
 
     /**
@@ -203,7 +217,7 @@ class SolariumSearch extends ConfigurableService implements Search
         $update = $this->getClient()->createUpdate();
         $update->addDeleteQuery($resourceId);
         $result = $this->getClient()->update($update);
-        return $this->resources->valid();
+        return true;
     }
 
     /**
