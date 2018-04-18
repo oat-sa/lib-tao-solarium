@@ -77,7 +77,7 @@ class SolariumSearch extends ConfigurableService implements Search
      * (non-PHPdoc)
      * @see \oat\tao\model\search\Search::query()
      */
-    public function query($queryString, $type, $start = 0, $count = 10) {
+    public function query($queryString, $type, $start = 0, $count = 10, $order = 'id', $dir = 'DESC') {
         
         $queryString = $this->buildSearchQuery($queryString, $type);
         
